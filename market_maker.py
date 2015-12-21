@@ -64,7 +64,6 @@ def listen_exec():
 if __name__ == '__main__':
     def Gspawn():
         G = [spawn(run_MarketMaker), spawn(listen_exec)]
-        #G = [spawn(listen_exec)]
         [g.join() for g in G]
                 
     P = [Process(target=Gspawn)]
