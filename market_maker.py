@@ -9,13 +9,16 @@ import json
 from gevent import spawn, sleep
 from multiprocessing import Process
 
-account = "BS76060286"
+account = "SAH91522616"
 key = "d4f6f80befe9cd49a65f470a1acea0bb227a104b"
-stock = "WAR"
-venue = "LGEHEX"
+stock = "TMHM"
+venue = "UQSPEX"
 url = 'https://api.stockfighter.io/ob/api/venues/%s/stocks/%s' % (venue, stock)
 headers = {"X-Starfighter-Authorization": "d4f6f80befe9cd49a65f470a1acea0bb227a104b"}
 payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
+
+
+last_buy, last_sell, pos = 50, 50, 0
 
 def quote():
     r = requests.get(url+'/quote', headers=headers)
@@ -27,33 +30,41 @@ def quote():
  
 def run_MarketMaker():
     bid, ask = quote()
-    last_buy, last_sell, pos = bid, ask, 0
+    last_buy, last_sell, pos = 50, 50, 0
     while 1:
+        sleep(1)
         bid, ask = quote()
-        if bid and ask and pos<400 and pos > -400:
+        print bid, ask
+        if bid and ask and pos < 400 and pos > -400:
             if (bid > last_buy):
-                cost = max(last_buy, bid)
+                cost = max(last_sell, bid)
                 payload_selllimit = json.dumps({"orderType":"limit", "price":int(cost),"qty":10,"direction":"sell","account":account})
                 r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
                 pos -= int(r1.json()['qty'])
                 last_sell = int(r1.json()['price'])
             
             if (ask < last_sell):
-                cost = min(last_sell, ask)
+                cost = min(last_buy, ask)
                 payload_buylimit = json.dumps({"orderType":"limit","price":int(cost),"qty":10,"direction":"buy","account":account})
                 r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
                 pos += int(r2.json()['qty'])
                 last_buy = int(r2.json()['price'])
         else:
             print bid, ask
-        print pos 
 
 def listen_exec():
-    pass    
+    from websocket import create_connection
+    socket_str = 'wss://api.stockfighter.io/ob/api/ws/%s/venues/%s/executions' % (account, venue)
+    ws = create_connection(socket_str)
+    while 1:
+        sleep(0.5)
+        result =  ws.recv()
+        print type(result) 
 
 if __name__ == '__main__':
     def Gspawn():
         G = [spawn(run_MarketMaker), spawn(listen_exec)]
+        #G = [spawn(listen_exec)]
         [g.join() for g in G]
                 
     P = [Process(target=Gspawn)]
