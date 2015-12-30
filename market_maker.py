@@ -9,12 +9,16 @@ import json
 from gevent import spawn, sleep
 from multiprocessing import Process
 
-account = "SAH91522616"
-key = "d4f6f80befe9cd49a65f470a1acea0bb227a104b"
-stock = "TMHM"
-venue = "UQSPEX"
+from config import *
+
+#account = "SAH91522616"
+#key = "d4f6f80befe9cd49a65f470a1acea0bb227a104b"
+#stock = "TMHM"
+#venue = "UQSPEX"
+
+
 url = 'https://api.stockfighter.io/ob/api/venues/%s/stocks/%s' % (venue, stock)
-headers = {"X-Starfighter-Authorization": "d4f6f80befe9cd49a65f470a1acea0bb227a104b"}
+headers = {"X-Starfighter-Authorization": key}
 payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
 
 
