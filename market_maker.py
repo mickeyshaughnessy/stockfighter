@@ -58,13 +58,23 @@ def run_MarketMaker():
             print bid, ask
 
 def run_basic():
-    bid, ask =  quote()
-    pos = get_position(orders)
+    
     while 1:
-        payload_selllimit = json.dumps({"orderType":"limit", "price":int(cost),"qty":10,"direction":"sell","account":account})
-        r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-        payload_buylimit = json.dumps({"orderType":"limit","price":int(cost),"qty":10,"direction":"buy","account":account})
-        r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+        bid, ask =  quote()
+        pos = get_position()
+        if abs(pos) < 900:
+            payload_selllimit = json.dumps({"orderType":"limit", "price":ask*1.05,"qty":10,"direction":"sell","account":account})
+            r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+            payload_buylimit = json.dumps({"orderType":"limit","price":buy*0.95,"qty":10,"direction":"buy","account":account})
+            r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+        elif pos < -900:
+            payload_buylimit = json.dumps({"orderType":"limit","price":buy,"qty":10,"direction":"buy","account":account})
+            r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+        elif pos > 900:
+            payload_selllimit = json.dumps({"orderType":"limit", "price":ask*1.05,"qty":10,"direction":"sell","account":account})
+            r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+        print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))  
+        
 
 def listen_websocket():
     from websocket import create_connection
@@ -76,12 +86,14 @@ def listen_websocket():
         print type(result) 
 
 def get_position(stock=stock, venue=venue, account=account, key=key, orders):
+    # orders is a list of the current unresolved orders
+    # returns  
     return 
 
 if __name__ == '__main__':
     def Gspawn():
         #G = [spawn(run_MarketMaker), spawn(listen_exec)]
-        G = [spawn(run_MarketMaker)]
+        G = [spawn(run_basic)]
         [g.join() for g in G]
                 
     P = [Process(target=Gspawn)]
