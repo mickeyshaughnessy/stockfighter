@@ -1,6 +1,8 @@
 
-key = "9e328d990cbfacfa4024fdbe711cc635c4e4f636"
+key = "71ead80f4a9f70676bad98a830a4763afe23c03a"
 
-account = 'MB32505750'
-stock = 'TUGU'
-venue = 'LWSBEX'
+account = 'BAR79470299'
+stock = 'OMM'
+venue = 'OUAEX'
+
+
