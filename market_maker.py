@@ -18,7 +18,7 @@ from config import *
 
 base_url = 'https://api.stockfighter.io/ob/api/venues/%s/' % (venue)
 url = base_url + 'stocks/%s' % (stock)
-order_url = base_url + 'accounts/%s' % (account)
+order_url = base_url + 'accounts/%s/orders' % (account)
 headers = {"X-Starfighter-Authorization": key}
 payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
 
@@ -61,19 +61,24 @@ def run_MarketMaker():
 def run_basic():
     while 1:
         bid, ask =  quote()
-        pos = get_position()
-        if abs(pos) < 900:
-            payload_selllimit = json.dumps({"orderType":"limit", "price":ask*1.05,"qty":10,"direction":"sell","account":account})
-            r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-            payload_buylimit = json.dumps({"orderType":"limit","price":buy*0.95,"qty":10,"direction":"buy","account":account})
-            r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
-        elif pos < -900:
-            payload_buylimit = json.dumps({"orderType":"limit","price":buy,"qty":10,"direction":"buy","account":account})
-            r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
-        elif pos > 900:
-            payload_selllimit = json.dumps({"orderType":"limit", "price":ask*1.05,"qty":10,"direction":"sell","account":account})
-            r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-        print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))  
+        print bid, ask
+        pos, buys, sells = get_position()
+        
+        if bid and ask:
+            if (buys + pos < 900) and (sells - pos > -900):
+                payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":10,"direction":"sell","account":account})
+                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":10,"direction":"buy","account":account})
+                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+                print r1.text
+                print r2.text
+            elif sells - pos <= -900:
+                payload_buylimit = json.dumps({"orderType":"limit","price":bid,"qty":10,"direction":"buy","account":account})
+                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+            elif buys + pos >= 900:
+                payload_selllimit = json.dumps({"orderType":"limit", "price":ask,"qty":10,"direction":"sell","account":account})
+                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+            print ('bid: %s, ask: %s, position: %s buys %s sells %s' % (bid, ask, pos, buys, sells))  
         
 
 def listen_websocket():
@@ -88,13 +93,18 @@ def listen_websocket():
 def get_position(stock=stock, venue=venue, account=account, key=key):
     rOrders = requests.get(order_url, headers=headers)
     pos = 0
-    for order in rOrders.json()['orders']:
+    buyNumber = 0
+    sellNumber = 0
+    print rOrders.text
+    for order in list(rOrders.json()['orders']):
         if order['direction'] == 'buy':
+            buyNumber += (order['originalQty'] - order['totalFilled'])
             pos += order['totalFilled']
         elif order['direction'] == 'sell':
+            sellNumber -= (order['originalQty'] - order['totalFilled'])
             pos -= order['totalFilled']
 
-    return pos
+    return pos, buyNumber, sellNumber
 
 if __name__ == '__main__':
     def Gspawn():
