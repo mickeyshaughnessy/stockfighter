@@ -16,8 +16,9 @@ from config import *
 #stock = "TMHM"
 #venue = "UQSPEX"
 
-
-url = 'https://api.stockfighter.io/ob/api/venues/%s/stocks/%s' % (venue, stock)
+base_url = 'https://api.stockfighter.io/ob/api/venues/%s/' % (venue)
+url = base_url + 'stocks/%s' % (stock)
+order_url = base_url + 'accounts/%s' % (account)
 headers = {"X-Starfighter-Authorization": key}
 payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
 
@@ -58,8 +59,8 @@ def run_MarketMaker():
             print bid, ask
 
 def run_basic():
-    bid, ask =  quote()
-    pos = get_position(orders)
+    bid, ask = quote()
+    pos = get_position()
     while 1:
         payload_selllimit = json.dumps({"orderType":"limit", "price":int(cost),"qty":10,"direction":"sell","account":account})
         r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
@@ -75,8 +76,16 @@ def listen_websocket():
         result =  ws.recv()
         print type(result) 
 
-def get_position(stock=stock, venue=venue, account=account, key=key, orders):
-    return 
+def get_position(stock=stock, venue=venue, account=account, key=key):
+    rOrders = requests.get(order_url, headers=headers)
+    pos = 0
+    for order in rOrders.json()['orders']:
+        if order['direction'] == 'buy':
+            pos += order['totalFilled']
+        elif order['direction'] == 'sell':
+            pos -= order['totalFilled']
+
+    return pos
 
 if __name__ == '__main__':
     def Gspawn():
