@@ -38,10 +38,10 @@ def run_MarketMaker():
     bid, ask = quote()
     last_buy, last_sell, pos = 50, 50, 0
     while 1:
-        sleep(1)
+        sleep(5)
         bid, ask = quote()
         print bid, ask
-        if bid and ask and pos < 400 and pos > -400:
+        if bid and ask and pos < 600 and pos > -600:
             if (bid > last_buy):
                 cost = max(last_sell, bid)
                 payload_selllimit = json.dumps({"orderType":"limit", "price":int(cost),"qty":10,"direction":"sell","account":account})
@@ -62,20 +62,21 @@ def run_basic():
     while 1:
         bid, ask =  quote()
         print bid, ask
+        sleep(1)
         pos, buys, sells = get_position()
         
         if bid and ask:
-            if (buys + pos < 900) and (sells - pos > -900):
-                payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":10,"direction":"sell","account":account})
-                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-                payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":10,"direction":"buy","account":account})
-                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
-                print r1.text
-                print r2.text
-            elif sells - pos <= -900:
+            if (buys + pos < 600) and (sells + pos > -600):
+                if buys > 0:
+                    payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":50,"direction":"sell","account":account})
+                    r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                if sells <= 0:
+                    payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":50,"direction":"buy","account":account})
+                    r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+            elif sells + pos <= -600:
                 payload_buylimit = json.dumps({"orderType":"limit","price":bid,"qty":10,"direction":"buy","account":account})
                 r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
-            elif buys + pos >= 900:
+            elif buys + pos >= 600:
                 payload_selllimit = json.dumps({"orderType":"limit", "price":ask,"qty":10,"direction":"sell","account":account})
                 r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
             print ('bid: %s, ask: %s, position: %s buys %s sells %s' % (bid, ask, pos, buys, sells))  
@@ -95,7 +96,6 @@ def get_position(stock=stock, venue=venue, account=account, key=key):
     pos = 0
     buyNumber = 0
     sellNumber = 0
-    print rOrders.text
     for order in list(rOrders.json()['orders']):
         if order['direction'] == 'buy':
             buyNumber += (order['originalQty'] - order['totalFilled'])
