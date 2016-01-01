@@ -65,22 +65,35 @@ def run_basic():
         sleep(1)
         pos, buys, sells = get_position()
         
-        if bid and ask:
-            if (buys + pos < 600) and (sells + pos > -600):
-                if buys > 0:
-                    payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":50,"direction":"sell","account":account})
-                    r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-                if sells <= 0:
-                    payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":50,"direction":"buy","account":account})
-                    r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
-            elif sells + pos <= -600:
-                payload_buylimit = json.dumps({"orderType":"limit","price":bid,"qty":10,"direction":"buy","account":account})
-                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
-            elif buys + pos >= 600:
-                payload_selllimit = json.dumps({"orderType":"limit", "price":ask,"qty":10,"direction":"sell","account":account})
-                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-            print ('bid: %s, ask: %s, position: %s buys %s sells %s' % (bid, ask, pos, buys, sells))  
+        #if bid and ask:
+        #    if (buys + pos < 450) and (sells + pos > -450):
+        #        if buys > 0:
+        #            payload_selllimit = json.dumps({"orderType":"immediate-or-cancel", "price":int(ask*1.05),"qty":50,"direction":"sell","account":account})
+        #            r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+        #        if sells <= 0:
+        #            payload_buylimit = json.dumps({"orderType":"immediate-or-cancel","price":int(bid*0.95),"qty":50,"direction":"buy","account":account})
+        #            r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+        #    elif sells + pos <= -450:
+        #        payload_buylimit = json.dumps({"orderType":"immediate-or-cancel","price":bid,"qty":10,"direction":"buy","account":account})
+        #        r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+        #    elif buys + pos >= 450:
+        #        payload_selllimit = json.dumps({"orderType":"immediate-or-cancel", "price":ask,"qty":10,"direction":"sell","account":account})
+        #        r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+        #    print ('bid: %s, ask: %s, position: %s buys %s sells %s' % (bid, ask, pos, buys, sells))  
         
+        if bid and ask:
+            if abs(pos) <= 450:
+                payload_selllimit = json.dumps({"orderType":"immediate-or-cancel", "price":int(ask*1.01),"qty":50,"direction":"sell","account":account})
+                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                payload_buylimit = json.dumps({"orderType":"immediate-or-cancel","price":int(bid*0.99),"qty":50,"direction":"buy","account":account})
+                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+            elif pos < -450:
+                payload_buylimit = json.dumps({"orderType":"immediate-or-cancel","price":int(bid*0.99),"qty":50,"direction":"buy","account":account})
+                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+            elif pos > 450:
+                payload_selllimit = json.dumps({"orderType":"immediate-or-cancel", "price":int(ask*1.01),"qty":50,"direction":"sell","account":account})
+                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+            print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))  
 
 def listen_websocket():
     from websocket import create_connection
@@ -96,7 +109,9 @@ def get_position(stock=stock, venue=venue, account=account, key=key):
     pos = 0
     buyNumber = 0
     sellNumber = 0
+    
     for order in list(rOrders.json()['orders']):
+        
         if order['direction'] == 'buy':
             buyNumber += (order['originalQty'] - order['totalFilled'])
             pos += order['totalFilled']
