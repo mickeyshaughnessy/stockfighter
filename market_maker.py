@@ -46,6 +46,7 @@ def run_basic():
             print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))  
 
 def run_limit():
+    totalProfit = 0;
     orders = []
     while 1:
         sleep(0.1)
@@ -71,14 +72,36 @@ def run_limit():
                 orders.append(r1.json()['id'])
                 print 'submitted sell order at %s' % (ask*1.05)
             while len(orders) > 20:
-                delete_order(orders[0])
+                order_id = orders[0]
+                delete_order(order_id)
+                r = requests.get(url+'/orders/%s' % order_id, headers=headers)
+                print r.text
+                if r.json().get('fills'):
+                    for fill in list(r.json()['fills']):
+                        if r.json()['direction'] == 'buy':
+                            totalProfit -= fill['price']*fill['qty']
+                        elif r.json()['direction'] == 'sell':
+                            totalProfit += fill['price']*fill['qty']
                 orders.pop(0)
-            print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))
+            print ('bid: %s, ask: %s, position: %s total profit: %s' % (bid, ask, pos, totalProfit))
     
 
 def delete_order(order_id):
     r = requests.delete(url+'/orders/%s' % order_id, headers=headers)
     print 'canceled order %s ' % r.json()['id']
+
+def remove_filled_orders(orders, totalProfit):
+    for i, order_id in enumerate(orders):
+        r = requests.get(url+'/orders/%s' % order_id, headers=headers).json()
+        if r['originalQty'] == r['totalFilled']:
+            delete_order(order_id)
+            if r.get('fills'):
+                for fill in list(r['fills']):
+                    if r['direction'] == 'buy':
+                        totalProfit -= fill['price']*fill['qty']
+                    elif r['direction'] == 'sell':
+                        totalProfit += fill['price']*fill['qty']
+            del orders[i]
     
 #def listen_websocket():
 #    from websocket import create_connection
