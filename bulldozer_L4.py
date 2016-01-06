@@ -1,4 +1,4 @@
-# this script deploys a market maker 
+# this script deploys a cautious market maker that is sensitive to directional order flow 
 """
 curl https://api.stockfighter.io/ob/api/venues/AIOPEX/stocks/MEIA/quote --header "X-Starfighter-Authorization:d4f6f80befe9cd49a65f470a1acea0bb227a104b"
 curl -X POST -d '{"orderType":"market","qty":1,"direction":"buy","account":"WLS28175343"}' https://api.stockfighter.io/ob/api/venues/MRBTEX/stocks/OGV/orders --header "X-Starfighter-Authorization:d4f6f80befe9cd49a65f470a1acea0bb227a104b"
@@ -15,7 +15,6 @@ base_url = 'https://api.stockfighter.io/ob/api/venues/%s/' % (venue)
 url = base_url + 'stocks/%s' % (stock)
 order_url = base_url + 'accounts/%s/orders' % (account)
 headers = {"X-Starfighter-Authorization": key}
-payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
 
 def quote():
     r = requests.get(url+'/quote', headers=headers)
@@ -84,7 +83,15 @@ def run_limit():
                 #            totalProfit += fill['price']*fill['qty']
                 orders.pop(0)
             print ('bid: %s, ask: %s, position: %s total profit: %s' % (bid, ask, pos, totalProfit))
-    
+
+def run_cautious():
+    pass
+    # proposed strategy is to
+    # run a limit market maker but
+    # cancel but pick up our vulnerable
+    # orders and head home when we see big
+    # cliffs (bid/ask depth) on either side.
+    # define 'big'. 
 
 def delete_order(order_id):
     r = requests.delete(url+'/orders/%s' % order_id, headers=headers)
