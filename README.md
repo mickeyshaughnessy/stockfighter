@@ -14,3 +14,7 @@ Code for level 3 is in `market_maker_L3.py`.
 
 Code for level 4 is in `bulldozer_L4.py`. 
 
+Good reading on reinforcement learning
+[iwww.cs.indiana.edu/~gasser/Salsa/rl](http://www.cs.indiana.edu/~gasser/Salsa/rl.html)
+[webdocs.cs.ualberta.ca/~sutton/book/ebook/the-book](http://webdocs.cs.ualberta.ca/~sutton/book/ebook/the-book.html)
+[en.wikipedia.org/wiki/Reinforcement_learning](https://en.wikipedia.org/wiki/Reinforcement_learning)
