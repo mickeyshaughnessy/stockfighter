@@ -1,4 +1,4 @@
-# this script deploys a cautious market maker that is sensitive to directional order flow 
+# this script deploys a market maker 
 """
 curl https://api.stockfighter.io/ob/api/venues/AIOPEX/stocks/MEIA/quote --header "X-Starfighter-Authorization:d4f6f80befe9cd49a65f470a1acea0bb227a104b"
 curl -X POST -d '{"orderType":"market","qty":1,"direction":"buy","account":"WLS28175343"}' https://api.stockfighter.io/ob/api/venues/MRBTEX/stocks/OGV/orders --header "X-Starfighter-Authorization:d4f6f80befe9cd49a65f470a1acea0bb227a104b"
@@ -15,6 +15,7 @@ base_url = 'https://api.stockfighter.io/ob/api/venues/%s/' % (venue)
 url = base_url + 'stocks/%s' % (stock)
 order_url = base_url + 'accounts/%s/orders' % (account)
 headers = {"X-Starfighter-Authorization": key}
+payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
 
 def quote():
     r = requests.get(url+'/quote', headers=headers)
@@ -45,7 +46,8 @@ def run_basic():
             print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))  
 
 def run_limit():
-    totalProfit = 0;
+    totalCash = 0;
+    netFilledOrders = 0;
     orders = []
     while 1:
         sleep(0.1)
@@ -70,19 +72,25 @@ def run_limit():
                 r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
                 orders.append(r1.json()['id'])
                 print 'submitted sell order at %s' % (ask*1.05)
+
+            totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
+
             while len(orders) > 20:
                 order_id = orders[0]
                 delete_order(order_id)
-                #r = requests.get(url+'/orders/%s' % order_id, headers=headers)
-                #print r.text
-                #if r.json().get('fills'):
-                #    for fill in list(r.json()['fills']):
-                #        if r.json()['direction'] == 'buy':
-                #            totalProfit -= fill['price']*fill['qty']
-                #        elif r.json()['direction'] == 'sell':
-                #            totalProfit += fill['price']*fill['qty']
+                r = requests.get(url+'/orders/%s' % order_id, headers=headers)
+                print r.text
+                if r.json().get('fills'):
+                    for fill in list(r.json()['fills']):
+                        if r.json()['direction'] == 'buy':
+                            totalCash -= fill['price']*fill['qty']
+                            netFilledOrders += fill['qty']
+                        elif r.json()['direction'] == 'sell':
+                            totalCash += fill['price']*fill['qty']
+                            netFilledOrders -= fill['qty']
                 orders.pop(0)
-            print ('bid: %s, ask: %s, position: %s total profit: %s' % (bid, ask, pos, totalProfit))
+            print ('bid: %s, ask: %s, position: %s total Cash: %s Stock Value: %s Net Value: %s' % (bid, ask, pos, totalCash, netFilledOrders*bid, totalCash + netFilledOrders*bid))
+    
 
 def run_cautious():
     pass
@@ -91,13 +99,13 @@ def run_cautious():
     # cancel but pick up our vulnerable
     # orders and head home when we see big
     # cliffs (bid/ask depth) on either side.
-    # define 'big'. 
+    # define 'big'.
 
 def delete_order(order_id):
     r = requests.delete(url+'/orders/%s' % order_id, headers=headers)
     print 'canceled order %s ' % r.json()['id']
 
-def remove_filled_orders(orders, totalProfit):
+def remove_filled_orders(orders, totalCash, netFilledOrders):
     for i, order_id in enumerate(orders):
         r = requests.get(url+'/orders/%s' % order_id, headers=headers).json()
         if r['originalQty'] == r['totalFilled']:
@@ -105,11 +113,14 @@ def remove_filled_orders(orders, totalProfit):
             if r.get('fills'):
                 for fill in list(r['fills']):
                     if r['direction'] == 'buy':
-                        totalProfit -= fill['price']*fill['qty']
+                        totalCash -= fill['price']*fill['qty']
+                        netFilledOrders += fill['qty']
                     elif r['direction'] == 'sell':
-                        totalProfit += fill['price']*fill['qty']
+                        totalCash += fill['price']*fill['qty']
+                        netFilledOrders -= fill['qty']
             del orders[i]
-    
+    return totalCash, netFilledOrders
+
 #def listen_websocket():
 #    from websocket import create_connection
 #    socket_str = 'wss://api.stockfighter.io/ob/api/ws/%s/venues/%s/executions' % (account, venue)
