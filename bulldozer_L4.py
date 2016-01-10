@@ -28,7 +28,19 @@ def quote():
     except:
         print r.text
     return bid, ask
- 
+
+def depth():
+    r = requests.get(url+'/quote', headers=headers)
+    try:
+        ask_depth, bid_depth = r.json().get('askDepth'), r.json().get('bidDepth')
+    except:
+        print r.text
+    return bid_depth, ask_depth
+
+def get_danger():
+    bid_depth, ask_depth = depth()
+    return ask_depth > 10000, bid_depth > 10000, bid_depth, ask_depth
+
 def run_basic():
     while 1:
         sleep(0.1)
@@ -52,7 +64,7 @@ def run_basic():
 def run_limit():
     totalCash, netFilledOrders, orders, time = 0, 0, [], 0
     while 1:
-        sleep(0.1)
+        sleep(0.05)
         time += 1
         if time % 5 == 0:
             # pause and display NAV every 10 steps 
@@ -105,17 +117,85 @@ def run_limit():
     
 
 def run_cautious():
-    pass
     # proposed strategy is to
-    # run a limit market maker but
-    # cancel but pick up our vulnerable
+    # run a limit market maker 
+    # but pick up our vulnerable
     # orders and head home when we see big
     # cliffs (bid/ask depth) on either side.
     # define 'big'.
+    totalCash, netFilledOrders, orders, time = 0, 0, [], 0
+    while 1:
+        sleep(0.05)
+        time += 1
+        if time % 5 == 0:
+            # pause and display NAV every 10 steps 
+            plot_NAV()
+        bid, ask =  quote()
+        pos, _, _  = get_position()
+        if bid and ask:
+            buy_danger, sell_danger, bid_depth, ask_depth = get_danger()
+            #submit a pair of buy/sell orders
+            if abs(pos) <= 450 and not buy_danger and not sell_danger:
+                payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":500,"direction":"sell","account":account})
+                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":500,"direction":"buy","account":account})
+                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+                orders.append(r1.json()['id'])
+                orders.append(r2.json()['id'])
+                print 'submitted buy/sell orders at %s - %s' % (bid*0.95, ask*1.05)
+            elif pos < -450 and not buy_danger and not sell_danger::
+                # submit just a buy order (don't go too short)
+                payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":500,"direction":"buy","account":account})
+                r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+                orders.append(r2.json()['id'])
+                print 'submitted buy order at %s' % (bid*0.95)
+            elif pos > 450 and not buy_danger and not sell_danger::
+                # submit just a sell order (don't go too long)
+                payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":500,"direction":"sell","account":account})
+                r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                orders.append(r1.json()['id'])
+                print 'submitted sell order at %s' % (ask*1.05)
+            elif buy_danger:
+                cancel_orders(orders, 'buy')
+                print 'buy danger detect, cancelling all buy orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth) 
+            elif sell_danger:
+                cancel_orders(orders, 'sell')
+                print 'sell danger detect, cancelling all sell orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth)
+ 
+            totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
+            NAVs.append(totalCash + netFilledOrders*bid)
+
+            while len(orders) > 20:
+                # cancel stale outstanding orders, first from the exchange
+                delete_order(orders[0])
+                r = requests.get(url+'/orders/%s' % orders[0], headers=headers)
+                print r.text
+                # next, update the totalCash, netFilledOrders, and orders data.
+                if r.json().get('fills'):
+                    for fill in list(r.json()['fills']):
+                        if r.json()['direction'] == 'buy':
+                            totalCash -= fill['price']*fill['qty']
+                            netFilledOrders += fill['qty']
+                        elif r.json()['direction'] == 'sell':
+                            totalCash += fill['price']*fill['qty']
+                            netFilledOrders -= fill['qty']
+                orders.pop(0)
+            print ('bid: %s, ask: %s, position: %s total Cash ($): %s Stock Value($): %s Net Value ($): %s' % 
+                (bid, ask, pos, totalCash/100.0, netFilledOrders*bid/100.0, (totalCash + netFilledOrders*bid)/100.0))
+    
 
 def delete_order(order_id):
     r = requests.delete(url+'/orders/%s' % order_id, headers=headers)
     print 'canceled order %s ' % r.json()['id']
+
+def cancel_orders(direction):
+    # get the orders for the account
+    # for every unfilled order in the cancel direction
+    # cancel the order
+    # remove the order from our orders book (maybe make this into a function, so partially filled orders get accounted for)
+    for order in orders:
+        # use our book rather than the 
+        r = requests.get(url+'/orders/%s' % orders[0], headers=headers)
 
 def remove_filled_orders(orders, totalCash, netFilledOrders):
     for i, order_id in enumerate(orders):
@@ -164,7 +244,6 @@ def plot_NAV():
     plt.xlabel('time')
     plt.ylabel('NAV')
     plt.show(block=False) 
-
 
 if __name__ == '__main__':
     def Gspawn():
