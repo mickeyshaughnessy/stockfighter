@@ -8,6 +8,8 @@ import requests
 import json
 from gevent import spawn, sleep
 from multiprocessing import Process
+import numpy as np
+import matplotlib.pyplot as plt
 
 from config import *
 
@@ -16,6 +18,8 @@ url = base_url + 'stocks/%s' % (stock)
 order_url = base_url + 'accounts/%s/orders' % (account)
 headers = {"X-Starfighter-Authorization": key}
 payload_buymarket = json.dumps({"orderType":"market","qty":1,"direction":"buy","account":account})
+
+NAVs = []
 
 def quote():
     r = requests.get(url+'/quote', headers=headers)
@@ -46,14 +50,17 @@ def run_basic():
             print ('bid: %s, ask: %s, position: %s' % (bid, ask, pos))  
 
 def run_limit():
-    totalCash = 0;
-    netFilledOrders = 0;
-    orders = []
+    totalCash, netFilledOrders, orders, time = 0, 0, [], 0
     while 1:
         sleep(0.1)
+        time += 1
+        if time % 5 == 0:
+            # pause and display NAV every 10 steps 
+            plot_NAV()
         bid, ask =  quote()
         pos, _, _  = get_position()
         if bid and ask:
+            #submit a pair of buy/sell orders
             if abs(pos) <= 450:
                 payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":50,"direction":"sell","account":account})
                 r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
@@ -63,23 +70,27 @@ def run_limit():
                 orders.append(r2.json()['id'])
                 print 'submitted buy/sell orders at %s - %s' % (bid*0.95, ask*1.05)
             elif pos < -450:
+                # submit just a buy order (don't go too short)
                 payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":50,"direction":"buy","account":account})
                 r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
                 orders.append(r2.json()['id'])
                 print 'submitted buy order at %s' % (bid*0.95)
             elif pos > 450:
+                # submit just a sell order (don't go too long)
                 payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":50,"direction":"sell","account":account})
                 r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
                 orders.append(r1.json()['id'])
                 print 'submitted sell order at %s' % (ask*1.05)
 
             totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
+            NAVs.append(totalCash + netFilledOrders*bid)
 
             while len(orders) > 20:
-                order_id = orders[0]
-                delete_order(order_id)
-                r = requests.get(url+'/orders/%s' % order_id, headers=headers)
+                # cancel stale outstanding orders, first from the exchange
+                delete_order(orders[0])
+                r = requests.get(url+'/orders/%s' % orders[0], headers=headers)
                 print r.text
+                # next, update the totalCash, netFilledOrders, and orders data.
                 if r.json().get('fills'):
                     for fill in list(r.json()['fills']):
                         if r.json()['direction'] == 'buy':
@@ -89,7 +100,8 @@ def run_limit():
                             totalCash += fill['price']*fill['qty']
                             netFilledOrders -= fill['qty']
                 orders.pop(0)
-            print ('bid: %s, ask: %s, position: %s total Cash: %s Stock Value: %s Net Value: %s' % (bid, ask, pos, totalCash, netFilledOrders*bid, totalCash + netFilledOrders*bid))
+            print ('bid: %s, ask: %s, position: %s total Cash ($): %s Stock Value($): %s Net Value ($): %s' % 
+                (bid, ask, pos, totalCash/100.0, netFilledOrders*bid/100.0, (totalCash + netFilledOrders*bid)/100.0))
     
 
 def run_cautious():
@@ -143,6 +155,16 @@ def get_position(stock=stock, venue=venue, account=account, key=key):
             pos -= order['totalFilled']
 
     return pos, buys, sells
+
+def plot_NAV():
+    plt.close()
+    x = [i for i in range(len(NAVs))]
+    plt.scatter(x, NAVs, s=50, alpha=0.5)
+    plt.title('NAV over time')
+    plt.xlabel('time')
+    plt.ylabel('NAV')
+    plt.show(block=False) 
+
 
 if __name__ == '__main__':
     def Gspawn():
