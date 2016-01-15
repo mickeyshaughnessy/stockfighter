@@ -160,7 +160,7 @@ def cancel_orders(orders, direction, totalCash, netFilledOrders):
         r = requests.get(url+'/orders/%s' % order, headers=headers)
         # cancel the order if it matches
         if r.json().get("direction") == direction:
-            delete_order(orders[0]) 
+            delete_order(order) 
             totalCash, netFilledOrders = update_vars(totalCash, netFilledOrders, r)
             orders.remove(order)
 
