@@ -67,11 +67,11 @@ def run_cautious(stock, venue):
     
     totalCash, netFilledOrders, orders, time = 0, 0, [], 0
     while 1:
-#        sleep(0.05)
+        sleep(0.05)
         time += 1
-#        if time % 5 == 0:
+        if time % 5 == 0:
             # pause and display NAV every 10 steps 
-#            plot_NAV()
+            plot_NAV()
 
         bid, ask =  quote()
         pos, _, _  = get_position()
@@ -117,8 +117,7 @@ def run_cautious(stock, venue):
                     print 'submitted sell order at %s' % (ask*1.05)
 
             totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
-            print totalCash, netFilledOrders
-#            NAVs.append(totalCash + netFilledOrders*bid)
+            NAVs.append(totalCash + netFilledOrders*bid)
 
             while len(orders) > 5:
                 # cancel stale outstanding orders, first from the exchange
@@ -133,7 +132,6 @@ def run_cautious(stock, venue):
                 (bid, ask, pos, totalCash/100.0, netFilledOrders*bid/100.0, (totalCash + netFilledOrders*bid)/100.0))
     
 def update_vars(totalCash, netFilledOrders, r):
-    print totalCash, netFilledOrders
     # This function updates the internal tracking variables after an order is resolved
     # r is a response from a delete_order request
     if r.json().get('fills'):
@@ -167,7 +165,6 @@ def cancel_orders(orders, direction, totalCash, netFilledOrders):
     return totalCash, netFilledOrders
     
 def remove_filled_orders(orders, totalCash, netFilledOrders):
-    print orders
     for order in orders:
         r = requests.get(url+'/orders/%s' % order, headers=headers)
         if r.json()['originalQty'] == r.json()['totalFilled']:
