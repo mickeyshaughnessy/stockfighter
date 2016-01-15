@@ -67,11 +67,11 @@ def run_cautious(stock, venue):
     
     totalCash, netFilledOrders, orders, time = 0, 0, [], 0
     while 1:
-        sleep(0.05)
+#        sleep(0.05)
         time += 1
-        if time % 5 == 0:
+#        if time % 5 == 0:
             # pause and display NAV every 10 steps 
-            plot_NAV()
+#            plot_NAV()
 
         bid, ask =  quote()
         pos, _, _  = get_position()
@@ -99,32 +99,34 @@ def run_cautious(stock, venue):
                 orders.append(r1.json()['id'])
                 print 'submitted sell order at %s' % (ask*1.05)
             elif buy_danger:
-                cancel_orders(orders, 'buy', totalCash, netFilledOrders)
-                print 'buy danger detect, cancelling all buy orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth) 
-                if pos > -1*ls_limit:
-                    payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":default_qty,"direction":"sell","account":account})
-                    r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
-                    orders.append(r1.json()['id'])
-                    print 'submitted sell order at %s' % (ask*1.05)
-            elif sell_danger:
-                cancel_orders(orders, 'sell', totalCash, netFilledOrders)
+                totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
                 print 'sell danger detect, cancelling all sell orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth)
                 if pos < ls_limit:
                     payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":default_qty,"direction":"buy","account":account})
                     r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
                     orders.append(r2.json()['id'])
                     print 'submitted buy order at %s' % (bid*0.95)
- 
+
+            elif sell_danger:
+                totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
+                print 'buy danger detect, cancelling all buy orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth) 
+                if pos > -1*ls_limit:
+                    payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":default_qty,"direction":"sell","account":account})
+                    r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                    orders.append(r1.json()['id'])
+                    print 'submitted sell order at %s' % (ask*1.05)
+
             totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
             print totalCash, netFilledOrders
-            NAVs.append(totalCash + netFilledOrders*bid)
+#            NAVs.append(totalCash + netFilledOrders*bid)
 
-            while len(orders) > 20:
+            while len(orders) > 5:
                 # cancel stale outstanding orders, first from the exchange
                 delete_order(orders[0])
                 r = requests.get(url+'/orders/%s' % orders[0], headers=headers)
                 # next, update the totalCash, netFilledOrders, and orders data.
-                update_vars(totalCash, netFilledOrders, r.json())
+                if r.json():
+                    totalCash, netFilledOrders = update_vars(totalCash, netFilledOrders, r)
                 # last, pop the order off our book.
                 orders.pop(0)
             print ('bid: %s, ask: %s, position: %s total Cash ($): %s Stock Value($): %s Net Value ($): %s' % 
@@ -142,7 +144,7 @@ def update_vars(totalCash, netFilledOrders, r):
             elif r.json()['direction'] == 'sell':
                 totalCash += fill['price']*fill['qty']
                 netFilledOrders -= fill['qty']
-    print totalCash, netFilledOrders
+    return totalCash, netFilledOrders
 
 def delete_order(order_id):
     r = requests.delete(url+'/orders/%s' % order_id, headers=headers)
@@ -159,8 +161,10 @@ def cancel_orders(orders, direction, totalCash, netFilledOrders):
         # cancel the order if it matches
         if r.json().get("direction") == direction:
             delete_order(orders[0]) 
-            update_vars(totalCash, netFilledOrders, r)
+            totalCash, netFilledOrders = update_vars(totalCash, netFilledOrders, r)
             orders.remove(order)
+
+    return totalCash, netFilledOrders
     
 def remove_filled_orders(orders, totalCash, netFilledOrders):
     print orders
@@ -168,7 +172,7 @@ def remove_filled_orders(orders, totalCash, netFilledOrders):
         r = requests.get(url+'/orders/%s' % order, headers=headers)
         if r.json()['originalQty'] == r.json()['totalFilled']:
             delete_order(order)
-            update_vars(totalCash, netFilledOrders, r)
+            totalCash, netFilledOrders = update_vars(totalCash, netFilledOrders, r)
             orders.remove(order)
     return totalCash, netFilledOrders
 
