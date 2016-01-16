@@ -76,7 +76,7 @@ def run_cautious(stock, venue):
         bid, ask =  quote()
         pos, _, _  = get_position()
         if bid and ask:
-            sell_danger, buy_danger, bid_depth, ask_depth = get_danger(10000, 10000)
+            buy_danger, sell_danger, bid_depth, ask_depth = get_danger(10000, 10000)
             #submit a pair of buy/sell orders
             if abs(pos) <= ls_limit and not buy_danger and not sell_danger:
                 payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":default_qty,"direction":"sell","account":account})
@@ -98,24 +98,27 @@ def run_cautious(stock, venue):
                 r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
                 orders.append(r1.json()['id'])
                 print 'submitted sell order at %s' % (ask*1.05)
-            elif buy_danger:
+            elif sell_danger and not buy_danger:
                 totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
-                print 'sell danger detect, cancelling all sell orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth)
+                print 'sell danger detected, cancelling all sell orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth)
                 if pos < ls_limit:
                     payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":default_qty,"direction":"buy","account":account})
                     r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
                     orders.append(r2.json()['id'])
                     print 'submitted buy order at %s' % (bid*0.95)
-
-            elif sell_danger:
+            elif buy_danger and not sell_danger:
                 totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
-                print 'buy danger detect, cancelling all buy orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth) 
+                print 'buy danger detected, cancelling all buy orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth) 
                 if pos > -1*ls_limit:
                     payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":default_qty,"direction":"sell","account":account})
                     r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
                     orders.append(r1.json()['id'])
                     print 'submitted sell order at %s' % (ask*1.05)
-
+            elif buy_danger and sell_danger:
+                totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
+                totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
+                print 'buy/sell danger detected, cancelling all buy/sell orders. bid/ask depth is %s/%s' % (bid_depth, ask_depth) 
+                
             totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
             NAVs.append(totalCash + netFilledOrders*bid)
 
@@ -200,6 +203,7 @@ def plot_NAV():
     plt.close()
     x = [i for i in range(len(NAVs))]
     plt.scatter(x, NAVs, s=50, alpha=0.5)
+    plt.plot([0,x[-1]], [25000000,25000000], color='r', linestyle='-', linewidth=2)
     plt.title('NAV over time')
     plt.xlabel('time')
     plt.ylabel('NAV')
