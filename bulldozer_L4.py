@@ -42,15 +42,17 @@ def get_danger(max_ask_ratio =0.4, max_bid_ratio =0.4):
     bid_danger = False;
     bid_ratio = 0;
     if bid_depth > 0:
-        bid_ratio = bid_size / bid_depth
+        bid_ratio = float(bid_size) / bid_depth
         bid_danger = (bid_ratio > max_bid_ratio and bid_depth > 1000)
+        print ('bid ratio = %s bid size = %s bid depth = %s bid danger = %s' % (bid_ratio, bid_size, bid_depth, bid_danger))
 
     ask_danger = False
     ask_ratio = 0;
 
     if ask_depth > 0:
-        ask_ratio = ask_size / ask_depth
+        ask_ratio = float(ask_size) / ask_depth
         ask_danger = (ask_ratio > max_ask_ratio and ask_depth > 1000)
+        print ('ask ratio = %s ask size = %s ask depth = %s ask danger = %s' % (ask_ratio, ask_size, ask_depth, ask_danger))
 
     return bid_danger, ask_danger, bid_ratio, ask_ratio
 
@@ -78,7 +80,8 @@ def run_basic():
 def run_cautious(stock, venue):
     print 'account is %s, venue is %s.' % (account, stock)
     
-    totalCash, netFilledOrders, orders, time = 0, 0, [], 0
+    totalCash, netFilledOrders, orders, last5asks, last5bids, time, pos = 0, 0, [], [], [], 0, 0
+    meanBid, meanAsk = quote()
     while 1:
         sleep(0.05)
         time += 1
@@ -86,8 +89,31 @@ def run_cautious(stock, venue):
             # pause and display NAV every 10 steps 
             plot_NAV()
 
+        #buyIndicator = False
+        #sellIndicator = False
+
         bid, ask =  quote()
-        pos, _, _  = get_position()
+        #if bid:
+        #    if bid < 1.2 * meanBid:
+        #        if len(last5bids) >= 5:
+        #            del(last5bids[0])
+        #        last5bids.append(bid)
+        #    else
+        #        sellIndicator = True;
+
+
+        #meanBid = np.mean(last5bids)
+
+        #if ask:
+        #    if ask > 0.8 * meanAsk:
+        #        if len(last5asks) >= 5:
+        #            del(last5asks[0])
+        #        last5asks.append(ask)
+        #    else:
+        #        buyIndicator = True;
+        
+        #meanAsk = np.mean(last5asks)
+
         if bid and ask:
             buy_danger, sell_danger, bid_ratio, ask_ratio = get_danger(0.4, 0.4)
             #submit a pair of buy/sell orders
@@ -131,6 +157,9 @@ def run_cautious(stock, venue):
                 totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
                 totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
                 print 'buy/sell danger detected, cancelling all buy/sell orders. bid/ask depth is %s/%s' % (bid_ratio, ask_ratio) 
+
+            pos, _, _  = get_position()
+
                 
             totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
             NAVs.append(totalCash + netFilledOrders*bid)
