@@ -37,24 +37,17 @@ def depthAndSize():
         print r.text
     return bid_depth, ask_depth, ask_size, bid_size
 
-def get_danger(max_ask_ratio =0.4, max_bid_ratio =0.4):
+def get_danger(max_ask_ratio = 0.5, max_bid_ratio = 0.5):
     bid_depth, ask_depth, ask_size, bid_size = depthAndSize()
+
     bid_danger = False;
-    bid_ratio = 0;
-    if bid_depth > 0:
-        bid_ratio = float(bid_size) / bid_depth
-        bid_danger = (bid_ratio > max_bid_ratio and bid_depth > 1000)
-        print ('bid ratio = %s bid size = %s bid depth = %s bid danger = %s' % (bid_ratio, bid_size, bid_depth, bid_danger))
+    bid_danger = (bid_depth > 50000)
 
     ask_danger = False
-    ask_ratio = 0;
+    ask_danger = (ask_depth > 50000)
+#        print ('ask ratio = %s ask size = %s ask depth = %s ask danger = %s' % (ask_ratio, ask_size, ask_depth, ask_danger))
 
-    if ask_depth > 0:
-        ask_ratio = float(ask_size) / ask_depth
-        ask_danger = (ask_ratio > max_ask_ratio and ask_depth > 1000)
-        print ('ask ratio = %s ask size = %s ask depth = %s ask danger = %s' % (ask_ratio, ask_size, ask_depth, ask_danger))
-
-    return bid_danger, ask_danger, bid_ratio, ask_ratio
+    return bid_danger, ask_danger
 
 def run_basic():
     while 1:
@@ -83,11 +76,11 @@ def run_cautious(stock, venue):
     totalCash, netFilledOrders, orders, last5asks, last5bids, time, pos = 0, 0, [], [], [], 0, 0
     meanBid, meanAsk = quote()
     while 1:
-        sleep(0.05)
-        time += 1
-        if time % 5 == 0:
+#        sleep(0.05)
+#        time += 1
+#        if time % 5 == 0:
             # pause and display NAV every 10 steps 
-            plot_NAV()
+#            plot_NAV()
 
         #buyIndicator = False
         #sellIndicator = False
@@ -115,7 +108,7 @@ def run_cautious(stock, venue):
         #meanAsk = np.mean(last5asks)
 
         if bid and ask:
-            buy_danger, sell_danger, bid_ratio, ask_ratio = get_danger(0.4, 0.4)
+            buy_danger, sell_danger = get_danger(0.5, 0.5)
             #submit a pair of buy/sell orders
             if abs(pos) <= ls_limit and not buy_danger and not sell_danger:
                 payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":default_qty,"direction":"sell","account":account})
@@ -139,30 +132,41 @@ def run_cautious(stock, venue):
                 print 'submitted sell order at %s' % (ask*1.05)
             elif sell_danger and not buy_danger:
                 totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
-                print 'sell danger detected, cancelling all sell orders. bid/ask ratios are %s/%s' % (bid_ratio, ask_ratio)
+#                totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
+                print 'sell danger detected, cancelling all buy / sell orders.'
                 if pos < ls_limit:
-                    payload_buylimit = json.dumps({"orderType":"limit","price":int(bid*0.95),"qty":default_qty,"direction":"buy","account":account})
-                    r2 = requests.post(url+'/orders', data=payload_buylimit, headers=headers)
+                    payload_buymarket = json.dumps({"orderType":"market","price":int(1.0),"qty":(ls_limit-pos),"direction":"buy","account":account})
+                    r2 = requests.post(url+'/orders', data=payload_buymarket, headers=headers)
                     orders.append(r2.json()['id'])
-                    print 'submitted buy order at %s' % (bid*0.95)
+                while sell_danger:
+                    buy_danger, sell_danger = get_danger(0.5, 0.5)
+                    sleep(1.0)
+                totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
+#                totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
             elif buy_danger and not sell_danger:
                 totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
-                print 'buy danger detected, cancelling all buy orders. bid/ask depth is %s/%s' % (bid_ratio, ask_ratio) 
+#                totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
+                print 'buy danger detected, cancelling all buy / sell orders.'
                 if pos > -1*ls_limit:
-                    payload_selllimit = json.dumps({"orderType":"limit", "price":int(ask*1.05),"qty":default_qty,"direction":"sell","account":account})
-                    r1 = requests.post(url+'/orders', data=payload_selllimit, headers=headers)
+                    payload_sellmarket = json.dumps({"orderType":"market","price":int(1.0),"qty":(pos+ls_limit),"direction":"sell","account":account})
+                    r1 = requests.post(url+'/orders', data=payload_sellmarket, headers=headers)
                     orders.append(r1.json()['id'])
-                    print 'submitted sell order at %s' % (ask*1.05)
+                    print 'submitted sell market order'
+                while buy_danger:
+                    buy_danger, sell_danger = get_danger(0.5, 0.5)
+                    sleep(1.0)
+                totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
+#                totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
             elif buy_danger and sell_danger:
                 totalCash, netFilledOrders = cancel_orders(orders, 'buy', totalCash, netFilledOrders)
                 totalCash, netFilledOrders = cancel_orders(orders, 'sell', totalCash, netFilledOrders)
-                print 'buy/sell danger detected, cancelling all buy/sell orders. bid/ask depth is %s/%s' % (bid_ratio, ask_ratio) 
+                print 'buy/sell danger detected, cancelling all buy/sell orders'
 
             pos, _, _  = get_position()
 
                 
             totalCash, netFilledOrders = remove_filled_orders(orders, totalCash, netFilledOrders)
-            NAVs.append(totalCash + netFilledOrders*bid)
+#            NAVs.append(totalCash + netFilledOrders*bid)
 
             while len(orders) > ls_limit / default_qty:
                 # cancel stale outstanding orders, first from the exchange
