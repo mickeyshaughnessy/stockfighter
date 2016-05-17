@@ -17,6 +17,8 @@ gm_url = 'https://www.stockfighter.io/gm'
 
 def restart_level(key, level):
     r = requests.post(gm_url+'/levels/%s' % level, headers=headers)
+    print r.text
+
     account, venue, ticker = r.json().get('account'), r.json().get('venues')[0], r.json().get('tickers')[0]
     return account, venue, ticker 
 
@@ -113,7 +115,19 @@ def run_cautious(stock, venue):
             
         count = count + 1
 
-    
+def run_watcher(stock, venue):
+    print 'account is %s, venue is %s.' % (account, stock)
+
+    totalCash, netFilledOrders, orders, last5asks, last5bids, time, pos = 0, 0, [], [], [], 0, 0
+    bids, asks = [], []
+    count = 0;
+    while 1:
+        count += 1
+        if count % 100 == 0: plot_bid_ask(bids, asks)
+        bid, ask = quote()
+        bids.append(bid)
+        asks.append(ask)
+ 
 def update_vars(totalCash, netFilledOrders, r):
     # This function updates the internal tracking variables after an order is resolved
     # r is a response from a delete_order request
@@ -156,15 +170,6 @@ def remove_filled_orders(orders, totalCash, netFilledOrders):
             orders.remove(order)
     return totalCash, netFilledOrders
 
-#def listen_websocket():
-#    from websocket import create_connection
-#    socket_str = 'wss://api.stockfighter.io/ob/api/ws/%s/venues/%s/executions' % (account, venue)
-#    ws = create_connection(socket_str)
-#    while 1:
-#        sleep(0.5)
-#        result =  ws.recv()
-#        print type(result) 
-
 def get_position():
     rOrders = requests.get(order_url, headers=headers)
     pos, buys, sells = 0, 0, 0
@@ -179,6 +184,19 @@ def get_position():
 
     return pos, buys, sells
 
+def plot_bid_ask(bids, asks):
+    plt.close()
+    x = [i for i in range(len(bids))]
+    plt.scatter(x, bids, s=50, alpha=0.5, label='bid')
+    plt.scatter(x, asks, s=50, alpha=0.5, label='ask')
+    #plt.plot([0,x[-1]], [25000000,25000000], color='r', linestyle='-', linewidth=2)
+    plt.title('bid ask spread over time')
+    plt.xlabel('time')
+    plt.ylabel('bid / ask')
+    plt.legend()
+    plt.show(block=False) 
+    
+
 def plot_NAV():
     plt.close()
     x = [i for i in range(len(NAVs))]
@@ -190,14 +208,16 @@ def plot_NAV():
     plt.show(block=False) 
 
 if __name__ == '__main__':
-    account, venue, stock = restart_level(key, 'dueling_bulldozers')
+    #account, venue, stock = restart_level(key, 'irrational_exurberance')
+    account, venue, stock = restart_level(key, 'irrational_exuberance')
     base_url = 'https://api.stockfighter.io/ob/api/venues/%s/' % (venue)
     url = base_url + 'stocks/%s' % (stock)
     order_url = base_url + 'accounts/%s/orders' % (account)
     NAVs = []
     
     def Gspawn():
-        G = [spawn(run_cautious, stock, venue)]
+        #G = [spawn(run_cautious, stock, venue)]
+        G = [spawn(run_watcher, stock, venue)]
         [g.join() for g in G]
     
     Gspawn()            
