@@ -1,11 +1,19 @@
-# this script deploys a market maker 
-"""
-curl https://api.stockfighter.io/ob/api/venues/AIOPEX/stocks/MEIA/quote --header "X-Starfighter-Authorization:d4f6f80befe9cd49a65f470a1acea0bb227a104b"
-curl -X POST -d '{"orderType":"market","qty":1,"direction":"buy","account":"WLS28175343"}' https://api.stockfighter.io/ob/api/venues/MRBTEX/stocks/OGV/orders --header "X-Starfighter-Authorization:d4f6f80befe9cd49a65f470a1acea0bb227a104b"
-"""
+# this script deploys a bid/ask spread watcher
+#
+# The basic strategy is to buy low - sell high. You can do this in any order.
+# The bots will increase the price as long as other bots are buying.
+
+# To take advantage of it:
+# 1. ignite buying by selling a few at low price.
+# 2. Once the run starts, buy all available stock for a certain time period
+# 3. Then, set a big sell at ~ 2x the intial price.
+# 4. Then set several small sells (~4x) to unwind position.
+# 5. repeat. 
+ 
 
 import requests
-import json
+from json import loads, dumps
+import json 
 from gevent import spawn, sleep
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,6 +23,28 @@ from config import *
 
 headers = {"X-Starfighter-Authorization": key}
 gm_url = 'https://www.stockfighter.io/gm'
+
+
+
+def get_our_orders(venue, account, stock):
+    base_url = 'https://api.stockfighter.io/ob/api/'   
+    order_url = base_url+'/venues/%s/accounts/%s/stocks/%s/orders'% (venue, account, stock)
+    r = requests.get(order_url, headers=headers)
+    orders = r.text   
+
+    buys, sells = 0,0
+    cash, stock_value = 0,0
+    position = {True:stock_value, False:cash} 
+    volume = {True:buys, False:sells} 
+
+    for order in orders['orders']:
+        buy = order['direction'] == 'buy'
+        for fill in order['fills']:
+            position[buy] += fill['qty'] * fill['price'] 
+            volume[buy] += fill['qty']
+
+    NAV = cash - stock_value 
+    print NAV
 
 def restart_level(key, level):
     r = requests.post(gm_url+'/levels/%s' % level, headers=headers)
@@ -36,8 +66,10 @@ def run_watcher(stock, venue):
     bids, asks = deque(maxlen=10000), deque(maxlen=10000) 
     count = 0;
     while 1:
+
+        get_our_orders(venue, account, stock)
         count += 1
-        if count % 10 == 0: plot_bid_ask(bids, asks)
+        #if count % 10 == 0: plot_bid_ask(bids, asks)
         
         bid, ask = quote()
         if not bid: bid = -1
@@ -49,8 +81,8 @@ def run_watcher(stock, venue):
 def plot_bid_ask(bids, asks):
     plt.close()
     x = range(len(bids)) 
-    plt.scatter(x, bids, s=50, alpha=0.5, label='bid', marker='x')
-    plt.scatter(x, asks, s=50, alpha=0.5, label='ask', marker='o')
+    plt.scatter(x, bids, s=50, alpha=0.5, label='bid', marker='x', color='r')
+    plt.scatter(x, asks, s=50, alpha=0.5, label='ask', marker='o', color='g')
     plt.title('bid ask spread over time')
     plt.xlabel('time')
     plt.ylabel('bid / ask')
