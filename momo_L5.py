@@ -25,7 +25,6 @@ headers = {"X-Starfighter-Authorization": key}
 gm_url = 'https://www.stockfighter.io/gm'
 
 
-
 def get_our_orders(venue, account, stock):
     base_url = 'https://api.stockfighter.io/ob/api/'   
     order_url = base_url+'/venues/%s/accounts/%s/stocks/%s/orders'% (venue, account, stock)
@@ -67,7 +66,7 @@ def run_watcher(stock, venue):
     while 1:
         get_our_orders(venue, account, stock)
         count += 1
-        #if count % 10 == 0: plot_bid_ask(bids, asks)
+        if count % 10 == 0: plot_bid_ask(bids, asks)
         
         bid, ask = quote()
         if not bid: bid = -1
