@@ -30,21 +30,20 @@ def get_our_orders(venue, account, stock):
     base_url = 'https://api.stockfighter.io/ob/api/'   
     order_url = base_url+'/venues/%s/accounts/%s/stocks/%s/orders'% (venue, account, stock)
     r = requests.get(order_url, headers=headers)
-    orders = r.text   
+    orders = loads(r.text)
 
-    buys, sells = 0,0
-    cash, stock_value = 0,0
-    position = {True:stock_value, False:cash} 
-    volume = {True:buys, False:sells} 
+    position = {True:0, False:0} 
+    volume = {True:0, False:0} 
 
     for order in orders['orders']:
         buy = order['direction'] == 'buy'
         for fill in order['fills']:
             position[buy] += fill['qty'] * fill['price'] 
             volume[buy] += fill['qty']
+            #print buy, fill, cash, stock_value
 
-    NAV = cash - stock_value 
-    print NAV
+    NAV = position[False] - position[True] 
+    print NAV/100.0, volume[True] - volume[False]
 
 def restart_level(key, level):
     r = requests.post(gm_url+'/levels/%s' % level, headers=headers)
@@ -66,7 +65,6 @@ def run_watcher(stock, venue):
     bids, asks = deque(maxlen=10000), deque(maxlen=10000) 
     count = 0;
     while 1:
-
         get_our_orders(venue, account, stock)
         count += 1
         #if count % 10 == 0: plot_bid_ask(bids, asks)
