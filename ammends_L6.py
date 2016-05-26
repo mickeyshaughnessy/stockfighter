@@ -43,14 +43,20 @@ def get_order(o):
     r = requests.get(order_url, headers=headers)
     return r.json() 
 
-def fill_orders(orders, _id):
-    ins = set([o for o in orders.keys() if o > _id])
+def fill_orders(orders, last_id):
     new_id = make_order() 
-    alls = set(xrange(_id, new_id))
-    missing = ins ^ alls
-    for o in missing:
-        orders[o] = get_order(o)
-    return new_id
+    for o_id in range(last_id, new_id):
+        orders[o_id] = get_order(o_id)
+        print orders[o_id]
+    return new_id  
+
+    #ins = set([o for o in orders.keys() if o > _id])
+    #new_id = make_order() 
+    #alls = set(xrange(_id, new_id))
+    #missing = ins ^ alls
+    #for o in missing:
+    #    orders[o] = get_order(o)
+    #return new_id
 
 def run_watcher():
     print 'account is %s, venue is %s, stock is %s.' % (account, venue, stock)
