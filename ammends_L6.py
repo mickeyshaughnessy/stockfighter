@@ -17,6 +17,14 @@ gm_url = 'https://www.stockfighter.io/gm'
 log_level = logging.DEBUG
 api = StockFighterApi(key, log_level)
 
+def received_message(m):
+    try:
+        if m.is_text:
+            msg = loads(m.data.decode('utf-8'))
+            print msg
+    except ValueError:
+        pass
+
 def restart_level(key, level):
     r = requests.post(gm_url+'/levels/%s' % level, headers=headers)
     account, venue, ticker = r.json().get('account'), r.json().get('venues')[0], r.json().get('tickers')[0]
@@ -75,17 +83,19 @@ def run_watcher():
     print 'getting all accounts...'
     accounts = set([])
     #for order in range(max(highest, 2000)):
-    for order in range(10):
+    for order in range(100):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
         accounts.add(acc)
         if order % 10 == 0: print 'order %s' % order
     print 'There are %s unique accounts' % len(accounts)
 
+    accounts = list(accounts)
     # set up websockets to listen to each account 
-    print api.heartbeat() 
-    
+   
+    socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
 
-#while 1:
+    while 1:
+        sleep(0.1)
     #    # watch the market
     #    # every once in a while, refresh the orders dict
     #    t += 1
