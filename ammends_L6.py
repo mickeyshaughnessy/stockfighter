@@ -1,17 +1,21 @@
 # this script collects evidence of insider trading 
 #
 
+from Stockfighter.Api import StockFighterApi
+
 import requests
 from json import loads, dumps
 from gevent import spawn, sleep
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-
+import logging
 from config import *
 
 headers = {"X-Starfighter-Authorization": key}
 gm_url = 'https://www.stockfighter.io/gm'
+log_level = logging.DEBUG
+api = StockFighterApi(key, log_level)
 
 def restart_level(key, level):
     r = requests.post(gm_url+'/levels/%s' % level, headers=headers)
@@ -66,10 +70,20 @@ def run_watcher():
     resp = requests.get('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/99999999' % (venue, stock), headers=headers).json()
     highest = int(resp['error'].split(' ')[-1].replace(')',''))
     print 'highest order is %s' % highest
+   
+    # get all the accounts  
+    print 'getting all accounts...'
     accounts = set([])
-    for order in range(highest):
+    #for order in range(max(highest, 2000)):
+    for order in range(10):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
-        accounts.add(acc) 
+        accounts.add(acc)
+        if order % 10 == 0: print 'order %s' % order
+    print 'There are %s unique accounts' % len(accounts)
+
+    # set up websockets to listen to each account 
+    print api.heartbeat() 
+    
 
 #while 1:
     #    # watch the market
