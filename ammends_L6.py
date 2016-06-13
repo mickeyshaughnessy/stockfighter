@@ -61,14 +61,24 @@ def fill_orders(orders, last_id):
 def run_watcher():
     print 'account is %s, venue is %s, stock is %s.' % (account, venue, stock)
     _id, t, orders, accounts = 0, 0, {}, set([])
-    while 1:
-        # watch the market
-        # every once in a while, refresh the orders dict
-        t += 1
-        if t % 100 == 0:
-            _id = fill_orders(orders, _id) 
-            accounts.update([orders[o]['account'] for o in orders.keys()])
-            print accounts 
+    
+    # get highest order number
+    resp = requests.get('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/99999999' % (venue, stock), headers=headers).json()
+    highest = int(resp['error'].split(' ')[-1].replace(')',''))
+    print 'highest order is %s' % highest
+    accounts = set([])
+    for order in range(highest):
+        acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
+        accounts.add(acc) 
+
+#while 1:
+    #    # watch the market
+    #    # every once in a while, refresh the orders dict
+    #    t += 1
+    #    if t % 100 == 0:
+    #        _id = fill_orders(orders, _id) 
+    #        accounts.update([orders[o]['account'] for o in orders.keys()])
+    #        print accounts 
                  
     
 if __name__ == '__main__':
@@ -77,7 +87,6 @@ if __name__ == '__main__':
     'https://api.stockfighter.io/ob/api/venues/TESTEX/accounts/EXB123456/stocks/FOOBAR/orders'    
 
     url = base_url + 'stocks/%s' % (stock)
-    #order_url = base_url + 'accounts/%s/orders' % (account)
 
     G = [spawn(run_watcher, )]
     [g.join() for g in G]
