@@ -1,4 +1,5 @@
 # this script collects evidence of insider trading 
+# I followed the strategy outline here https://github.com/gavingmiller/level-6
 #
 
 from Stockfighter.Api import StockFighterApi
@@ -14,14 +15,14 @@ from config import *
 
 headers = {"X-Starfighter-Authorization": key}
 gm_url = 'https://www.stockfighter.io/gm'
-log_level = logging.DEBUG
+log_level = logging.INFO
 api = StockFighterApi(key, log_level)
 
 def received_message(m):
     try:
         if m.is_text:
             msg = loads(m.data.decode('utf-8'))
-            print msg
+            # do something with the message
     except ValueError:
         pass
 
