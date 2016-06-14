@@ -2,6 +2,7 @@
 # I followed the strategy outline here https://github.com/gavingmiller/level-6
 #
 
+
 from Stockfighter.Api import StockFighterApi
 
 import requests
@@ -12,17 +13,36 @@ import matplotlib.pyplot as plt
 import random
 import logging
 from config import *
+from pprint import pprint
 
 headers = {"X-Starfighter-Authorization": key}
 gm_url = 'https://www.stockfighter.io/gm'
 log_level = logging.INFO
 api = StockFighterApi(key, log_level)
+account_data = {} 
 
+# The strategy is for each account, to watch and see its executed orders
+# Buys, sells, total volume
 def received_message(m):
     try:
         if m.is_text:
             msg = loads(m.data.decode('utf-8'))
-            # do something with the message
+            #pprint(msg)
+            acct = msg['account']
+            order = msg['order']
+            direction = order['direction']
+            trans = []
+            for f in order['fills']:
+                trans.append((order['price'], order['qty']))
+            if direction == 'sell':
+                for t in trans:
+                    account_data[acct]['sells'].append(t)
+                    account_data[acct]['volume'] += t[1]
+            else:
+                for t in trans:
+                    account_data[acct]['buys'].append(t)
+                    account_data[acct]['volume'] += t[1]
+             
     except ValueError:
         pass
 
@@ -63,13 +83,26 @@ def fill_orders(orders, last_id):
         print orders[o_id]
     return new_id  
 
-    #ins = set([o for o in orders.keys() if o > _id])
-    #new_id = make_order() 
-    #alls = set(xrange(_id, new_id))
-    #missing = ins ^ alls
-    #for o in missing:
-    #    orders[o] = get_order(o)
-    #return new_id
+def culprits(data):
+    # returns the 10 most profitable accounts
+    # (name, profit, volume)
+    # culprit should be highest profit and low volume 
+    accs = []
+    for acc in data:
+        profit = get_profit(data[acc]['sells'], data[acc]['buys'])
+        vol = data[acc]['volume']
+        if vol > 0:
+            accs.append((acc, profit, data[acc]['volume']))
+    return sorted(accs, key=lambda acc : acc[1])[-10:]
+
+def get_profit(buys, sells):
+    profit = 0
+    for b in buys:
+        profit -= b[0]*b[1]
+    for s in sells:
+        profit += s[0]*s[1]
+    return profit / 100.0            
+    
 
 def run_watcher():
     print 'account is %s, venue is %s, stock is %s.' % (account, venue, stock)
@@ -83,20 +116,29 @@ def run_watcher():
     # get all the accounts  
     print 'getting all accounts...'
     accounts = set([])
-    #for order in range(max(highest, 2000)):
-    for order in range(100):
+    for order in range(min(highest, 1000)):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
         accounts.add(acc)
         if order % 10 == 0: print 'order %s' % order
     print 'There are %s unique accounts' % len(accounts)
 
     accounts = list(accounts)
+    for acc in accounts:
+        account_data[acc] = {'sells':[], 'buys':[], 'volume':0} 
     # set up websockets to listen to each account 
    
     socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
 
-    while 1:
+    while t < 100000:
+        t += 1
         sleep(0.1)
+        if t % 10 == 0:
+            #suspects = [account_data[k] for k in account_data if account_data[k]['volume']>0]
+            #pprint(suspects)
+            print '###################'
+            pprint(culprits(account_data))
+        if t % 1000:
+            socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
     #    # watch the market
     #    # every once in a while, refresh the orders dict
     #    t += 1
