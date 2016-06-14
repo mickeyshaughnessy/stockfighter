@@ -5,6 +5,7 @@
 
 from Stockfighter.Api import StockFighterApi
 
+from sklearn.linear_model import LinearRegression as LR
 import requests
 from json import loads, dumps
 from gevent import spawn, sleep
@@ -27,7 +28,6 @@ def received_message(m):
     try:
         if m.is_text:
             msg = loads(m.data.decode('utf-8'))
-            #pprint(msg)
             acct = msg['account']
             order = msg['order']
             direction = order['direction']
@@ -86,23 +86,38 @@ def fill_orders(orders, last_id):
 def culprits(data):
     # returns the 10 most profitable accounts
     # (name, profit, volume)
-    # culprit should be highest profit and low volume 
-    accs = []
+    # culprit should be highest profit and low volume
+    accs, reg1, reg2 = [], LR(fit_intercept=True), LR(fit_intercept=True)
     for acc in data:
-        profit = get_profit(data[acc]['sells'], data[acc]['buys'])
+        _buys, _sells = data[acc]['buys'], data[acc]['sells']
+        profit = get_profit(_sells, _buys)
         vol = data[acc]['volume']
+        # in sklearn, predictors are fit with ([<X>], [Y]), where <X> is a vector of features, and Y is a label
+        X1,X2 = [[x] for x in range(len(_buys))], [[x] for x in range(len(_sells))]
+        Y1, Y2 = [b[1] for b in _buys], [s[1] for s in _sells]
+        if X1 and X2 and Y1 and Y2:
+            reg1.fit(X1,Y1), reg2.fit(X2, Y2)
+            buy_intercept = reg1.intercept_ 
+            sell_intercept = reg2.intercept_
+        else:
+            buy_intercept, sell_intercept = 0,0
         if vol > 0:
-            accs.append((acc, profit, data[acc]['volume']))
+            accs.append((acc, profit, data[acc]['volume'], sell_intercept, buy_intercept))
     return sorted(accs, key=lambda acc : acc[1])[-10:]
 
 def get_profit(buys, sells):
-    profit = 0
-    for b in buys:
-        profit -= b[0]*b[1]
-    for s in sells:
-        profit += s[0]*s[1]
-    return profit / 100.0            
-    
+    bid, ask = quote() 
+    if buys and sells:
+        profit = 0
+        for b in buys:
+            profit -= b[0]*b[1]
+        for s in sells:
+            profit += s[0]*s[1]
+        if bid and ask: 
+            profit += 0.5 * (bid + ask) * (sum(b[0] for b in buys) - sum(s[0] for s in sells))
+        return profit / 100.0            
+    else: 
+        return 0 
 
 def run_watcher():
     print 'account is %s, venue is %s, stock is %s.' % (account, venue, stock)
@@ -116,7 +131,7 @@ def run_watcher():
     # get all the accounts  
     print 'getting all accounts...'
     accounts = set([])
-    for order in range(min(highest, 200)):
+    for order in range(min(highest, 100)):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
         accounts.add(acc)
         if order % 10 == 0: print 'order %s' % order
@@ -129,6 +144,8 @@ def run_watcher():
    
     socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
 
+    print 'established execution websockets'
+
     while t < 100000:
         t += 1
         sleep(0.1)
@@ -137,8 +154,8 @@ def run_watcher():
             #pprint(suspects)
             print '###################'
             pprint(culprits(account_data))
-        if t % 1000:
-            socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
+        #if t % 1000:
+        #    socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
     #    # watch the market
     #    # every once in a while, refresh the orders dict
     #    t += 1
