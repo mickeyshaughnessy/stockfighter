@@ -4,6 +4,11 @@ from config import *
 
 headers = {"X-Starfighter-Authorization": key}
 
+### This script posts the solution to level six ###
+### you need to put in the correct account 
+### and put in the correct level instance #, which can be found
+### using the chrome developer tools and seeing where the GETs are going
+
 soln = {}
 soln['account'] = 'FFB93850575'
 soln['explanation_link'] = ''
