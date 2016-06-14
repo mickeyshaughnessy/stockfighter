@@ -116,7 +116,7 @@ def run_watcher():
     # get all the accounts  
     print 'getting all accounts...'
     accounts = set([])
-    for order in range(min(highest, 1000)):
+    for order in range(min(highest, 200)):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
         accounts.add(acc)
         if order % 10 == 0: print 'order %s' % order
