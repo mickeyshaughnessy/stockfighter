@@ -87,7 +87,7 @@ def culprits(data):
     # returns the 10 most profitable accounts
     # (name, profit, volume)
     # culprit should be highest profit and low volume
-    accs, reg1, reg2 = [], LR(fit_intercept=True), LR(fit_intercept=True)
+    accs, reg1, reg2 = {}, LR(fit_intercept=True), LR(fit_intercept=True)
     for acc in data:
         _buys, _sells = data[acc]['buys'], data[acc]['sells']
         profit = get_profit(_sells, _buys)
@@ -102,8 +102,14 @@ def culprits(data):
         else:
             buy_intercept, sell_intercept = 0,0
         if vol > 0:
-            accs.append((acc, profit, data[acc]['volume'], sell_intercept, buy_intercept))
-    return sorted(accs, key=lambda acc : acc[1])[-10:]
+            accs[acc] = {}
+            accs[acc]['profit'] = profit
+            accs[acc]['volume'] = data[acc]['volume'] 
+            accs[acc]['avg_sell'] = sell_intercept 
+            accs[acc]['avg_buy'] = buy_intercept 
+#            accs.append((acc, profit, data[acc]['volume'], sell_intercept, buy_intercept))
+#    return sorted(accs, key=lambda acc : acc[1])[-10:]
+    return accs 
 
 def get_profit(buys, sells):
     bid, ask = quote() 
@@ -131,7 +137,7 @@ def run_watcher():
     # get all the accounts  
     print 'getting all accounts...'
     accounts = set([])
-    for order in range(min(highest, 100)):
+    for order in range(min(highest, 1000)):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
         accounts.add(acc)
         if order % 10 == 0: print 'order %s' % order
