@@ -7,6 +7,7 @@ from Stockfighter.Api import StockFighterApi
 
 from sklearn.linear_model import LinearRegression as LR
 import requests
+import threading
 from json import loads, dumps
 from gevent import spawn, sleep
 import numpy as np
@@ -28,23 +29,25 @@ def received_message(m):
     try:
         if m.is_text:
             msg = loads(m.data.decode('utf-8'))
-            acct = msg['account']
-            order = msg['order']
-            direction = order['direction']
-            trans = []
-            for f in order['fills']:
-                trans.append((order['price'], order['qty']))
-            if direction == 'sell':
-                for t in trans:
-                    account_data[acct]['sells'].append(t)
-                    account_data[acct]['volume'] += t[1]
-            else:
-                for t in trans:
-                    account_data[acct]['buys'].append(t)
-                    account_data[acct]['volume'] += t[1]
-             
+            threading.Thread(target=update_accounts, args=[msg]).start() 
     except ValueError:
         pass
+
+def update_accounts(msg):
+    acct = msg['account']
+    order = msg['order']
+    direction = order['direction']
+    trans = []
+    for f in order['fills']:
+        trans.append((order['price'], order['qty']))
+    if direction == 'sell':
+        for t in trans:
+            account_data[acct]['sells'].append(t)
+            account_data[acct]['volume'] += t[1]
+    else:
+        for t in trans:
+            account_data[acct]['buys'].append(t)
+            account_data[acct]['volume'] += t[1]
 
 def restart_level(key, level):
     r = requests.post(gm_url+'/levels/%s' % level, headers=headers)
@@ -68,9 +71,6 @@ def make_order():
         data=payload, headers=headers)
     return r.json().get('id')
 
-def get_all_orders(last_id):
-    return 0
-
 def get_order(o):
     order_url = url + '/orders/%s' % o
     r = requests.get(order_url, headers=headers)
@@ -84,7 +84,8 @@ def fill_orders(orders, last_id):
     return new_id  
 
 def culprits(data):
-    # returns the 10 most profitable accounts
+    print len(data)
+    # returns the most profitable accounts (by volume)
     # (name, profit, volume)
     # culprit should be highest profit and low volume
     accs, reg1, reg2 = {}, LR(fit_intercept=True), LR(fit_intercept=True)
@@ -93,20 +94,21 @@ def culprits(data):
         profit = get_profit(_sells, _buys)
         vol = data[acc]['volume']
         # in sklearn, predictors are fit with ([<X>], [Y]), where <X> is a vector of features, and Y is a label
-        X1,X2 = [[x] for x in range(len(_buys))], [[x] for x in range(len(_sells))]
-        Y1, Y2 = [b[1] for b in _buys], [s[1] for s in _sells]
-        if X1 and X2 and Y1 and Y2:
-            reg1.fit(X1,Y1), reg2.fit(X2, Y2)
-            buy_intercept = reg1.intercept_ 
-            sell_intercept = reg2.intercept_
-        else:
-            buy_intercept, sell_intercept = 0,0
+        #X1,X2 = [[x] for x in range(len(_buys))], [[x] for x in range(len(_sells))]
+        #Y1, Y2 = [b[1] for b in _buys], [s[1] for s in _sells]
+        #if X1 and X2 and Y1 and Y2:
+        #    reg1.fit(X1,Y1), reg2.fit(X2, Y2)
+        #    buy_intercept = reg1.intercept_ 
+        #    sell_intercept = reg2.intercept_
+        #else:
+        #    buy_intercept, sell_intercept = 0,0
         if vol > 0:
             accs[acc] = {}
-            accs[acc]['profit'] = profit
-            accs[acc]['volume'] = data[acc]['volume'] 
-            accs[acc]['avg_sell'] = sell_intercept 
-            accs[acc]['avg_buy'] = buy_intercept 
+            #accs[acc]['profit'] = profit
+            #accs[acc]['volume'] = volume 
+            #accs[acc]['avg_sell'] = sell_intercept 
+            #accs[acc]['avg_buy'] = buy_intercept
+            accs[acc]['avg_profit'] = profit / (1.0*volume)
 #            accs.append((acc, profit, data[acc]['volume'], sell_intercept, buy_intercept))
 #    return sorted(accs, key=lambda acc : acc[1])[-10:]
     return accs 
@@ -137,7 +139,7 @@ def run_watcher():
     # get all the accounts  
     print 'getting all accounts...'
     accounts = set([])
-    for order in range(min(highest, 1000)):
+    for order in range(min(highest, 200)):
         acc = requests.delete('https://api.stockfighter.io/ob/api/venues/%s/stocks/%s/orders/%s' % (venue, stock, order), headers=headers).json()['error'].split(' ')[-1].replace('.','').rstrip()
         accounts.add(acc)
         if order % 10 == 0: print 'order %s' % order
@@ -149,6 +151,7 @@ def run_watcher():
     # set up websockets to listen to each account 
    
     socks = [api.stock_execution_socket(venue, stock, acc, received_message) for acc in accounts] 
+    # websockets get closed if callback function takes too long
 
     print 'established execution websockets'
 

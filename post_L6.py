@@ -10,7 +10,7 @@ headers = {"X-Starfighter-Authorization": key}
 ### using the chrome developer tools and seeing where the GETs are going
 
 soln = {}
-soln['account'] = 'FFB93850575'
+soln['account'] = 'MK14888105'
 soln['explanation_link'] = ''
 soln['executive_summary'] = ''
 
@@ -19,3 +19,4 @@ url = url + '/judge'
 
 resp = requests.post(url, data=dumps(soln), headers=headers)
 print resp.json()
+print resp.text
