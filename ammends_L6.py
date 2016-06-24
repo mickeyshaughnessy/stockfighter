@@ -92,7 +92,7 @@ def culprits(data):
     for acc in data:
         _buys, _sells = data[acc]['buys'], data[acc]['sells']
         profit = get_profit(_sells, _buys)
-        vol = data[acc]['volume']
+        volume = data[acc]['volume']
         # in sklearn, predictors are fit with ([<X>], [Y]), where <X> is a vector of features, and Y is a label
         #X1,X2 = [[x] for x in range(len(_buys))], [[x] for x in range(len(_sells))]
         #Y1, Y2 = [b[1] for b in _buys], [s[1] for s in _sells]
@@ -102,7 +102,7 @@ def culprits(data):
         #    sell_intercept = reg2.intercept_
         #else:
         #    buy_intercept, sell_intercept = 0,0
-        if vol > 0:
+        if volume > 0:
             accs[acc] = {}
             #accs[acc]['profit'] = profit
             #accs[acc]['volume'] = volume 
